@@ -100,7 +100,20 @@ def fetch_and_process_data():
     data.columns = data.columns.str.replace('ú', 'u')
     data.columns = data.columns.str.replace('ñ', 'n')
     data.columns = data.columns.str.replace('°', '')
-    
+
+
+    number_columns=['hrtotrol','hr_tot_asi']
+    print("Transformando columnas a formato float")
+    for col in number_columns:
+        if col in data.columns:
+            data[col] = pd.to_numeric(
+                data[col].astype(str)                      # asegura string
+                         .str.replace(".", "", regex=False)  # quita miles
+                         .str.replace(",", ".", regex=False) # coma -> punto
+                         .str.strip(),                        # quita espacios
+                errors="coerce"
+            )
+
     # Procesar datos de rotación
 
     print(f"✅ Datos procesados exitosamente: {len(data)} registros")
@@ -239,4 +252,5 @@ def rotacion_sync():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
+
 
