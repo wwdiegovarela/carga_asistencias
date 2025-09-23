@@ -72,19 +72,13 @@ def fetch_and_process_data():
 
     # Convertir a DataFrame
     data = pd.DataFrame(data_json)
-    date_columns = ['Her', 'FlogAsi','Hsr']
+    date_columns = ['Her', 'FlogAsi','Hsr','Entrada', 'Salida']
     print("Transformando columnas a formato datetime")
     for col in date_columns:
         if col in data.columns:
-            data[col] = pd.to_datetime(data[col], format='%d-%m-%Y %H:%M:%S')
+            data[col] = pd.to_datetime(data[col], format='%d-%m-%Y %H:%M:%S', errors='coerce')
             
-    
-    datetime_s_columns = ['Entrada', 'Salida']
-    print("Transformando columnas a formato datetime")
-    for col in datetime_s_columns:
-        if col in data.columns:
-            data[col] = pd.to_datetime(data[col], format='%d-%m-%Y %H:%M', errors='coerce')
-            
+
     datetime_columns=['FechaMarcaEntrada','FechaMarcaSalida']
     print("Transformando columnas a formato datetime")
     for col in datetime_columns:
@@ -258,6 +252,7 @@ def rotacion_sync():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
+
 
 
 
