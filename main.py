@@ -78,6 +78,12 @@ def fetch_and_process_data():
         if col in data.columns:
             data[col] = pd.to_datetime(data[col], format='%d-%m-%Y %H:%M:%S')
             
+    
+    datetime_s_columns = ['Entrada', 'Salida']
+    print("Transformando columnas a formato datetime")
+    for col in datetime_s_columns:
+        if col in data.columns:
+            data[col] = pd.to_datetime(data[col], format='%d-%m-%Y %H:%M')
             
     datetime_columns=['FechaMarcaEntrada','FechaMarcaSalida']
     print("Transformando columnas a formato datetime")
@@ -252,5 +258,6 @@ def rotacion_sync():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
+
 
 
