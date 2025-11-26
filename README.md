@@ -21,6 +21,7 @@ Configura las siguientes variables de entorno en tu servicio de Cloud Run:
 - `DATASET_ID` - ID del dataset de BigQuery
 - `TABLE_ID` - ID de la tabla de BigQuery
 - `TOKEN_CR` - Token de autenticación para la API
+- `TOKEN_CR_INDUSTRY` - Segundo token (misma `API_LOCAL_URL`) para la fuente Industry
 
 ## Despliegue a Cloud Run
 
@@ -62,7 +63,9 @@ gcloud run deploy carga-rotacion \
   --memory 2Gi \
   --cpu 2 \
   --timeout 3600 \
-  --set-env-vars API_LOCAL_URL="tu-api-url",PROJECT_ID="pruebas-463316",DATASET_ID="tu-dataset",TABLE_ID="tu-tabla",TOKEN_CR="tu-token"
+  --set-env-vars API_LOCAL_URL="tu-api-url",PROJECT_ID="pruebas-463316",DATASET_ID="tu-dataset",TABLE_ID="tu-tabla",TOKEN_CR="tu-token",TOKEN_CR_INDUSTRY="tu-token-industry"
+
+
 ```
 
 ## Uso
@@ -117,6 +120,7 @@ Puedes monitorear la función en:
 La función procesa datos de empleados y genera una tabla con las siguientes columnas principales:
 
 - `period` - Período (YYYY-MM)
+- `empresa` - Origen de la data: "Security" o "Industry"
 - `rut` - RUT del empleado
 - `cliente` - Cliente
 - `instalacion` - Instalación

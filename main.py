@@ -20,67 +20,71 @@ PROJECT_ID = os.getenv("PROJECT_ID")
 DATASET_ID = os.getenv("DATASET_ID")
 TABLE_ID = os.getenv("TABLE_ID")
 TOKEN = os.getenv("TOKEN_CR")
+TOKEN_INDUSTRY = os.getenv("TOKEN_CR_INDUSTRY")  # segunda fuente usando misma URL
 
-def fetch_and_process_data():
-    """Función para obtener y procesar datos de la API externa"""
-    print("=== OBTENIENDO Y PROCESANDO DATOS ===")
+def _fetch_and_process_single(api_url: str, token: str, source_name: str, empresa_label: str) -> pd.DataFrame | None:
+    """Descarga y transforma datos desde una fuente específica.
     
-    # Preparar parámetros para la API local
-    headers = {
-        "method": "report",
-        "token": TOKEN
-    }
-    print(f"API URL: {API_LOCAL_URL}")
-    print(f"Headers: {headers}")
-    
+    Retorna un DataFrame normalizado o None si no hay datos.
+    """
+    print(f"=== OBTENIENDO Y PROCESANDO DATOS ({source_name}) ===")
+
+    if not api_url:
+        print(f"⚠️ URL no configurada para la fuente: {source_name}")
+        return None
+
+    headers = {"method": "report", "token": token}
+    print(f"[{source_name}] API URL: {api_url}")
+    print(f"[{source_name}] Headers: {{'method': 'report', 'token': '***'}}")
+
     try:
-        print("🔄 Iniciando llamada a ControlRoll...")
-        response = requests.get(API_LOCAL_URL, headers=headers, timeout=3600)
-        print("✅ Llamada completada")
+        print(f"🔄 Iniciando llamada a fuente {source_name}...")
+        response = requests.get(api_url, headers=headers, timeout=3600)
+        print(f"✅ Llamada completada ({source_name})")
     except requests.exceptions.Timeout:
-        error_msg = "Timeout: La API externa tardó más de 1 hora en responder"
+        error_msg = f"Timeout: La API {source_name} tardó más de 1 hora en responder"
         print(f"❌ {error_msg}")
         raise HTTPException(status_code=504, detail=error_msg)
     except requests.exceptions.ConnectionError as e:
-        error_msg = f"Error de conexión con la API externa: {str(e)}"
+        error_msg = f"Error de conexión con la API {source_name}: {str(e)}"
         print(f"❌ {error_msg}")
         raise HTTPException(status_code=502, detail=error_msg)
     except requests.exceptions.RequestException as e:
-        error_msg = f"Error en la petición HTTP: {str(e)}"
+        error_msg = f"Error en la petición HTTP ({source_name}): {str(e)}"
         print(f"❌ {error_msg}")
         raise HTTPException(status_code=502, detail=error_msg)
     except Exception as e:
-        error_msg = f"Error inesperado: {type(e).__name__}: {str(e)}"
+        error_msg = f"Error inesperado en {source_name}: {type(e).__name__}: {str(e)}"
         print(f"❌ {error_msg}")
         import traceback
         print(f"❌ Stack trace: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=error_msg)
     
-    print(f"Status code: {response.status_code}")
+    print(f"[{source_name}] Status code: {response.status_code}")
     response.raise_for_status()
     data_text = response.text
-    print(f"Longitud de respuesta: {len(data_text)}")
-    print(f"Primeros 200 caracteres: {data_text[:200]}")
+    print(f"[{source_name}] Longitud de respuesta: {len(data_text)}")
+    print(f"[{source_name}] Primeros 200 caracteres: {data_text[:200]}")
     
     data_json = json.loads(data_text)
-    print(f"Datos obtenidos: {len(data_json)} registros")
-    print(f"Primer registro: {data_json[0] if data_json else 'No hay datos'}")
+    print(f"[{source_name}] Datos obtenidos: {len(data_json)} registros")
+    print(f"[{source_name}] Primer registro: {data_json[0] if data_json else 'No hay datos'}")
     
     if not data_json:
-        print("No hay datos para procesar")
+        print(f"[{source_name}] No hay datos para procesar")
         return None
 
     # Convertir a DataFrame
     data = pd.DataFrame(data_json)
     date_columns = ['Her', 'FlogAsi','Hsr','Entrada', 'Salida']
-    print("Transformando columnas a formato datetime")
+    print(f"[{source_name}] Transformando columnas a formato datetime")
     for col in date_columns:
         if col in data.columns:
             data[col] = pd.to_datetime(data[col], format='%d-%m-%Y %H:%M:%S', errors='coerce')
             
 
     datetime_columns=['FechaMarcaEntrada','FechaMarcaSalida']
-    print("Transformando columnas a formato datetime")
+    print(f"[{source_name}] Transformando columnas a formato datetime")
     for col in datetime_columns:
         if col in data.columns:
             data[col] = pd.to_datetime(data[col], format='%Y-%m-%d %H:%M:%S')
@@ -103,7 +107,7 @@ def fetch_and_process_data():
 
 
     number_columns=['hrtotrol','hr_tot_asi']
-    print("Transformando columnas a formato float")
+    print(f"[{source_name}] Transformando columnas a formato float")
     for col in number_columns:
         if col in data.columns:
             data[col] = pd.to_numeric(
@@ -114,10 +118,48 @@ def fetch_and_process_data():
                 errors="coerce"
             )
 
-    # Procesar datos de rotación
+    # Agregar columna 'empresa' antes de devolver
+    data['empresa'] = empresa_label
 
-    print(f"✅ Datos procesados exitosamente: {len(data)} registros")
+    print(f"✅ Datos procesados exitosamente ({source_name}): {len(data)} registros")
     return data
+
+def fetch_and_process_data():
+    """Obtiene y procesa datos. Si existe una segunda fuente, unifica ambas antes de retornar."""
+    print("=== OBTENIENDO Y PROCESANDO DATOS (MODO MULTIFUENTE) ===")
+
+    # Validaciones: siempre debemos tener ambas fuentes
+    if not API_LOCAL_URL:
+        raise HTTPException(status_code=400, detail="Falta variable de entorno API_LOCAL_URL")
+    if not TOKEN:
+        raise HTTPException(status_code=400, detail="Falta variable de entorno TOKEN_CR")
+    if not TOKEN_INDUSTRY:
+        raise HTTPException(status_code=400, detail="Falta variable de entorno TOKEN_CR_INDUSTRY")
+
+    # Fuente 1: Security
+    df1 = _fetch_and_process_single(API_LOCAL_URL, TOKEN, "Fuente 1 - Security", "Security")
+    # Fuente 2: Industry (misma URL, distinto token)
+    df2 = _fetch_and_process_single(API_LOCAL_URL, TOKEN_INDUSTRY, "Fuente 2 - Industry", "Industry")
+
+    # Si alguna viene vacía, considerar esto un error ya que siempre esperamos ambas
+    if df1 is None or df2 is None:
+        raise HTTPException(status_code=500, detail="Alguna de las fuentes no retornó datos")
+
+    # Unificar columnas y concatenar
+    print("🔗 Unificando datasets de Fuente 1 y Fuente 2")
+    all_columns = sorted(set(df1.columns).union(set(df2.columns)))
+    df1_aligned = df1.reindex(columns=all_columns)
+    df2_aligned = df2.reindex(columns=all_columns)
+    merged = pd.concat([df1_aligned, df2_aligned], ignore_index=True, sort=False)
+
+    # Eliminar duplicados exactos si existieran
+    before = len(merged)
+    merged = merged.drop_duplicates()
+    after = len(merged)
+    print(f"🧹 Registros antes: {before} | después de eliminar duplicados: {after}")
+
+    print(f"✅ Datos combinados listos: {len(merged)} registros")
+    return merged
 
 def load_to_bigquery(df_bridge):
     """Función para cargar datos procesados a BigQuery"""
